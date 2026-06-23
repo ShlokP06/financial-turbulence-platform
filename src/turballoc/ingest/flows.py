@@ -1,4 +1,3 @@
-import datetime as dt
 from turballoc.ingest.credit import fetch_credit
 from turballoc.ingest.macro import fetch_macro_series
 from turballoc.ingest.market import defaults, fetch_prices, to_returns
