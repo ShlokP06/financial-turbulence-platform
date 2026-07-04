@@ -1,0 +1,79 @@
+{
+  "universe": "expanded 14-asset",
+  "return": {
+    "GFC aftershock / Euro crisis (2011)": {
+      "SPY (buy & hold)": -0.15681475789626165,
+      "Equal-weight": -0.06351461416334658,
+      "Strategy (base)": -0.0044314906074293114,
+      "Strategy (+momentum)": -0.005441671070828713
+    },
+    "2015-16 China / oil rout": {
+      "SPY (buy & hold)": -0.13072787858919543,
+      "Equal-weight": -0.10191845197958949,
+      "Strategy (base)": -0.015019898767753226,
+      "Strategy (+momentum)": -0.01368203749662078
+    },
+    "2018 Q4 selloff": {
+      "SPY (buy & hold)": -0.1917194522203456,
+      "Equal-weight": -0.08187941491619555,
+      "Strategy (base)": -0.005013774099097867,
+      "Strategy (+momentum)": -0.0049955697374349795
+    },
+    "COVID crash (peak->trough)": {
+      "SPY (buy & hold)": -0.35439399103447977,
+      "Equal-weight": -0.21902964841382322,
+      "Strategy (base)": -0.0319518602864296,
+      "Strategy (+momentum)": -0.02479609194554322
+    },
+    "2022 bear (rates shock)": {
+      "SPY (buy & hold)": -0.2578915051050088,
+      "Equal-weight": -0.157283536057501,
+      "Strategy (base)": -0.09338597240859858,
+      "Strategy (+momentum)": -0.08113457321912587
+    },
+    "2026 Iran war oil shock": {
+      "SPY (buy & hold)": -0.050711408618775655,
+      "Equal-weight": 0.0019885374270307565,
+      "Strategy (base)": -0.003337853089296572,
+      "Strategy (+momentum)": -0.0031514533964994706
+    }
+  },
+  "max_drawdown": {
+    "GFC aftershock / Euro crisis (2011)": {
+      "SPY (buy & hold)": -0.19525145401142996,
+      "Equal-weight": -0.08803060021724873,
+      "Strategy (base)": -0.015350264007769843,
+      "Strategy (+momentum)": -0.018362827568591422
+    },
+    "2015-16 China / oil rout": {
+      "SPY (buy & hold)": -0.13217700826544332,
+      "Equal-weight": -0.10890030771052361,
+      "Strategy (base)": -0.020141012990080087,
+      "Strategy (+momentum)": -0.01962237381733667
+    },
+    "2018 Q4 selloff": {
+      "SPY (buy & hold)": -0.19819085622073684,
+      "Equal-weight": -0.09051826724224088,
+      "Strategy (base)": -0.01085482206098054,
+      "Strategy (+momentum)": -0.009538539545194125
+    },
+    "COVID crash (peak->trough)": {
+      "SPY (buy & hold)": -0.3574589302149943,
+      "Equal-weight": -0.23444294723054704,
+      "Strategy (base)": -0.044929600980666895,
+      "Strategy (+momentum)": -0.037397151468887224
+    },
+    "2022 bear (rates shock)": {
+      "SPY (buy & hold)": -0.2621512953497357,
+      "Equal-weight": -0.16582764508006131,
+      "Strategy (base)": -0.09423005832030762,
+      "Strategy (+momentum)": -0.08325568161519548
+    },
+    "2026 Iran war oil shock": {
+      "SPY (buy & hold)": -0.07767830095339612,
+      "Equal-weight": -0.030348282931831005,
+      "Strategy (base)": -0.008631745394405699,
+      "Strategy (+momentum)": -0.007233173298670237
+    }
+  }
+}

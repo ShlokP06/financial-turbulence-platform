@@ -1,4 +1,4 @@
-# Stack orchestration. Frontend is intentionally omitted (built later as a separate service).
+#Stack Orchestration
 services:
   api:
     build: .
@@ -11,12 +11,21 @@ services:
       - ./data:/app/data
     command: uvicorn turballoc.serve.app:app --host 0.0.0.0 --port 8000
 
-  # Example scheduled ingestion worker (Prefect). Uncomment once flows are implemented.
-  # scheduler:
-  #   build: .
-  #   image: turballoc:latest
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - ./data:/app/data
-  #   command: python -m turballoc.ingest.flows
+  scheduler:
+    build: .
+    image: turballoc:latest
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: python -m turballoc.ingest.flows
+
+
+
+
+
+
+
+
+
+    

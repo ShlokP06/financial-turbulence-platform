@@ -1,0 +1,203 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{Financial Turbulence Platform:\\
+A Risk-Managed, Alpha-Tilted Multi-Asset Strategy}
+\author{Shlok Parikh}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We build a multi-asset allocation system that uses a statistical turbulence signal to scale
+portfolio risk, a minimum-variance/vol-targeting base for stability, a leak-free exceedance
+classifier as a leading de-risk trigger, and a time-series momentum tilt for return. Every
+component is validated under a leakage-safe walk-forward backtest, net of transaction costs, on
+ETF data spanning 2010--2026. A naively turbulence-tilted Black--Litterman strategy that is
+\emph{dominated} by equal-weight (Sharpe $0.27$) is rebuilt into a strategy with Sharpe $0.82$,
+Sortino $1.05$, and a maximum drawdown of $-8.8\%$ on an expanded 14-asset universe. The work
+emphasises honest evaluation: a deep LSTM-CNN forecaster is shown to be statistically
+indistinguishable from predicting the mean and is discarded in favour of a logistic regression
+that genuinely beats persistence.
+\end{abstract}
+
+\section{Motivation}
+Diversification fails precisely when it is most needed: asset correlations spike during crises, so
+a portfolio that looks diversified in calm markets becomes concentrated in a single ``risk-on/off''
+factor during a drawdown. The \emph{turbulence index} of Kritzman and Li (2010) measures this
+directly, and the goal of this project is to turn it into a disciplined risk-scaling and allocation
+system---and to do so with the methodological rigour (leakage control, honest baselines, robustness
+testing) that separates a credible quant strategy from an over-fit backtest.
+
+\section{Data and Universe}
+The core universe is ten liquid ETFs spanning equities (SPY, EFA, EEM), real estate (VNQ), rates and
+credit (AGG, LQD, HYG, TLT), and commodities (GLD, DBC), 2010--2026, daily. An \emph{expanded}
+14-asset universe adds four distinct, low-correlation sleeves---T-bills (BIL), TIPS (TIP), oil (USO),
+and EM bonds (EMB).
+
+\paragraph{Effective breadth.} Eigenanalysis of the return correlation matrix shows the first
+principal component (the common risk factor) explains $43.9\%$ of variance and the first three
+explain $82\%$. The \emph{effective number of independent bets} (entropy of normalised eigenvalues)
+is only $4.89$ out of $10$, and it \emph{collapses to $3.80$ during the COVID crash}---a quantitative
+statement of why crisis diversification evaporates. Adding the four distinct sleeves raises effective
+breadth to $6.54$, confirming they are genuinely diversifying rather than redundant.
+
+\section{Methodology}
+\subsection{Turbulence index}
+For a return vector $x_t$ with rolling mean $\mu$ and covariance $\Sigma$ (estimated on a trailing
+window, strictly in-sample), turbulence is the squared Mahalanobis distance
+\begin{equation}
+d_t^2 = (x_t-\mu)^\top \Sigma^{-1} (x_t-\mu),
+\end{equation}
+equivalently a one-sample Hotelling $T^2$ statistic. High $d_t^2$ means today's cross-asset move is
+statistically improbable under the recent covariance regime.
+
+\subsection{Allocation base}
+Expected returns are the noisiest input to mean--variance optimisation, and inverting a raw sample
+covariance amplifies estimation error (``error maximisation''). We therefore (i) shrink the
+covariance with the Ledoit--Wolf estimator and (ii) use a \emph{risk-based} base---global
+minimum-variance with a per-asset cap (risk parity and inverse-vol are also implemented)---which
+needs no return forecast.
+
+\subsection{Volatility targeting and the turbulence overlay}
+The base book is scaled to a fixed annualised volatility target, then a turbulence \emph{exposure
+overlay} scales gross exposure toward a cash sleeve (earning the risk-free rate) when the trailing
+percentile of turbulence is elevated. This is the Kritzman--Li signal used as intended---to scale
+\emph{risk}, not to rotate cross-sectionally into bonds.
+
+\subsection{Forecasting: exceedance, not level}
+Forecasting the turbulence \emph{level} is futile: its autocorrelation decays from $0.48$ (1d) to
+$0.16$ (30d) to $-0.02$ (90d), so a level regressor merely re-derives persistence. A deep LSTM-CNN,
+evaluated leak-free, does not beat a persistence baseline (7-day level rank-IC $0.146$ vs
+persistence $0.175$) and is statistically indistinguishable from predicting the training mean. We
+reframe the task as \emph{exceedance classification}---will turbulence cross its trailing 90th
+percentile within $k$ days?---and find a regularised logistic regression beats persistence on
+out-of-sample AUC (Table~\ref{tab:auc}); a gradient-boosted model over-fits. The deep model is
+discarded.
+
+\begin{table}[h]\centering
+\caption{Out-of-sample exceedance AUC vs a persistence baseline.}\label{tab:auc}
+\begin{tabular}{lccc}
+\toprule
+Horizon & Persistence & Logistic regression & Gradient boosting \\
+\midrule
+$k=5$  & 0.701 & \textbf{0.759} & 0.60 \\
+$k=10$ & 0.685 & \textbf{0.727} & 0.50 \\
+$k=21$ & 0.668 & \textbf{0.693} & 0.59 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Time-series momentum tilt}
+Finally we add a return signal: time-series momentum (Moskowitz, Ooi \& Pedersen 2012). Each asset's
+risk-adjusted 12-minus-1-month trend tilts the risk-based base (continuous tilt or a long-flat sign
+filter). Beyond adding alpha, momentum is a \emph{principled} re-entry mechanism---it re-risks into
+recoveries and shrinks persistent downtrends.
+
+\subsection{Backtest protocol}
+All results use a walk-forward backtest with monthly rebalancing, $10$ bps one-way costs, and a
+strict no-lookahead guard (weights at rebalance $i$ use only data through $i{-}1$); the guard is unit
+tested. Performance is summarised by annualised Sharpe and Sortino, annualised volatility, maximum
+drawdown, and one-way turnover.
+
+\section{Results}
+\subsection{Building up the strategy}
+Table~\ref{tab:ladder} isolates each layer's contribution on the core universe. The turbulence
+overlay adds $+0.05$ Sharpe over naive vol-targeting; the forecast-driven overlay lifts Sortino from
+$0.82$ to $0.92$ at lower turnover; momentum and the expanded universe compound to the best result.
+
+\begin{table}[h]\centering
+\caption{Incremental results (net of costs, leakage-safe). Top: core 10-asset universe,
+full period. Bottom: expanded 14-asset universe.}\label{tab:ladder}
+\begin{tabular}{lccccc}
+\toprule
+Configuration & Sharpe & Sortino & Ann.\ vol & Max DD & Turnover \\
+\midrule
+\multicolumn{6}{l}{\emph{Core universe (10 assets)}}\\
+Equal-weight                 & 0.563 & 0.692 & 0.092 & $-0.218$ & 0.03 \\
+Min-var + vol-target         & 0.644 & 0.767 & 0.051 & $-0.170$ & 0.43 \\
+\quad + turbulence overlay   & 0.696 & 0.904 & 0.042 & $-0.160$ & 1.82 \\
+\quad + momentum (sign)      & 0.740 & 0.943 & 0.042 & $-0.102$ & 2.62 \\
+\midrule
+\multicolumn{6}{l}{\emph{Expanded universe (14 assets)}}\\
+Equal-weight                 & 0.443 & 0.532 & 0.086 & $-0.234$ & 0.03 \\
+Strategy (no momentum)       & 0.714 & 0.912 & 0.025 & $-0.103$ & 1.83 \\
+\textbf{+ momentum (continuous)} & \textbf{0.822} & \textbf{1.048} & \textbf{0.024} & $\mathbf{-0.088}$ & 2.02 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Marginal value of the forecast}
+Over the common range 2013--2026, swapping the contemporaneous turbulence signal for the trailing
+percentile of the forecast exceedance probability improves the overlay: Sharpe $0.63\!\to\!0.69$,
+Sortino $0.82\!\to\!0.92$, max drawdown $-16\%\!\to\!-15\%$, with \emph{lower} turnover
+($1.28$ vs $1.82$)---the gain is better timing, not more trading.
+
+\subsection{Robustness}
+The momentum tilt-strength sweep is smooth and monotonic (Sharpe $0.71\!\to\!0.83$ as strength goes
+$0\!\to\!1$ on the expanded universe), the signature of a real effect rather than a fitted spike. By
+sub-period (Sharpe), the continuous tilt is the more balanced choice: the sign filter helps the 2022
+bear strongly but is weaker in 2016--2020, whereas the continuous tilt improves every sub-period
+without large regressions.
+
+\section{Crisis Stress Tests}
+Table~\ref{tab:stress} reports the best config (expanded universe + continuous momentum) through six
+stress episodes. The strategy cushions every crisis---most strikingly COVID ($-3.7\%$ drawdown vs SPY
+$-35.7\%$) and the 2026 Iran-war oil shock ($-0.7\%$ vs SPY $-7.8\%$), a supply-driven dislocation it
+was never tuned for, detected because turbulence keys off cross-asset correlation breakdown.
+
+\begin{table}[h]\centering
+\caption{Maximum drawdown within crisis windows (expanded universe + momentum).}\label{tab:stress}
+\begin{tabular}{lcccc}
+\toprule
+Episode & SPY & Equal-weight & Strategy (base) & Strategy (+mom) \\
+\midrule
+2011 Euro crisis        & $-19.5\%$ & $-8.8\%$  & $-1.5\%$  & $-1.8\%$ \\
+2015--16 China/oil      & $-13.2\%$ & $-10.9\%$ & $-2.0\%$  & $-2.0\%$ \\
+2018 Q4 selloff         & $-19.8\%$ & $-9.1\%$  & $-1.1\%$  & $-1.0\%$ \\
+COVID crash             & $-35.7\%$ & $-23.4\%$ & $-4.5\%$  & $-3.7\%$ \\
+2022 bear (rates)       & $-26.2\%$ & $-16.6\%$ & $-9.4\%$  & $-8.3\%$ \\
+2026 Iran war oil shock & $-7.8\%$  & $-3.0\%$  & $-0.9\%$  & $-0.7\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Limitations}
+We report these candidly, as they are part of the analysis:
+\begin{itemize}[nosep]
+  \item \textbf{Low absolute return.} The book is deliberately low-volatility ($\sim$2.4\%), so
+  annualised return is modest ($\sim$2\%); the value is risk-adjusted, not headline return.
+  \item \textbf{2022 is the hard regime.} When bonds and equities fall together, the
+  minimum-variance base---which leans on bonds---offers less protection ($-8.3\%$).
+  \item \textbf{Fast crashes cannot be fully dodged.} A 5--10 day signal cushions but does not avoid
+  a two-week crash; the strategy also gives up upside in sharp recoveries.
+  \item \textbf{Moderate statistical confidence.} One market history with roughly four stress
+  episodes; cross-sectional breadth was added, but the number of independent time-series regimes is
+  the binding constraint.
+\end{itemize}
+
+\section{Conclusion}
+The system turns a broken, benchmark-dominated strategy (Sharpe $0.27$) into a rigorously validated,
+risk-managed, alpha-tilted strategy (Sharpe $0.82$, Sortino $1.05$, max drawdown $-8.8\%$) that
+demonstrably collapses crisis drawdowns. As much as the numbers, the contribution is the process:
+leakage control, honest baselines (including discarding an over-fit deep model), robustness and
+sub-period testing, and explicit limitations.
+
+\begin{thebibliography}{9}
+\bibitem{kl} M.~Kritzman and Y.~Li. Skulls, Financial Turbulence, and Risk Management.
+\emph{Financial Analysts Journal}, 2010.
+\bibitem{mop} T.~Moskowitz, Y.~H.~Ooi, and L.~H.~Pedersen. Time Series Momentum.
+\emph{Journal of Financial Economics}, 2012.
+\bibitem{lw} O.~Ledoit and M.~Wolf. Honey, I Shrunk the Sample Covariance Matrix.
+\emph{Journal of Portfolio Management}, 2004.
+\bibitem{bl} F.~Black and R.~Litterman. Global Portfolio Optimization.
+\emph{Financial Analysts Journal}, 1992.
+\end{thebibliography}
+
+\end{document}
