@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from turballoc.ingest.store import FeatureStore
-from turballoc.signals.regime import Regime, classify_regime
+from turballoc.signals.regime import classify_regime
 from turballoc.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -27,10 +27,8 @@ def build_turbulence_feature(window = 252, store = None):
     store = store or FeatureStore()
     returns = store.read("returns")
     turb = turbulence_index(returns, window = window)
-    regime = classify_regime(turb, window = window)
     out = pd.DataFrame({"turbulence": turb})
-    labels = {r: r.value for r in Regime}
-    out["regime"] = regime.map(labels)
+    out["regime"] = classify_regime(turb, window = window)
     out.index.name = "date"
     store.write("turbulence", out)
     logger.info(f"Wrote turbulence feature for {len(out)} days")

@@ -12,11 +12,13 @@ class Regime(str, Enum):
 def classify_regime(turbulence, window = 252, low = 0.3, high = 0.8, min_periods = 126):
     lo = turbulence.rolling(window, min_periods = min_periods).quantile(low)
     hi = turbulence.rolling(window, min_periods = min_periods).quantile(high)
-    valid = lo.notna() & hi.notna()
-    regime = pd.Series(Regime.NORMAL, index = turbulence.index, dtype = object, name = "regime")
-    regime = regime.mask(valid & (turbulence >= hi), Regime.TURBULENT)
-    regime = regime.mask(valid & (turbulence < lo), Regime.CALM)
-    regime = regime.mask(turbulence.isna() | ~valid, pd.NA)
+    ok = lo.notna() & hi.notna() & turbulence.notna()
+    # Plain string labels via boolean indexing. (Series.mask with the str-Enum routes through
+    # numpy.where, which coerces the member to a fixed-width string and truncates it.)
+    regime = pd.Series(pd.NA, index = turbulence.index, dtype = object, name = "regime")
+    regime[ok] = Regime.NORMAL.value
+    regime[ok & (turbulence >= hi)] = Regime.TURBULENT.value
+    regime[ok & (turbulence < lo)] = Regime.CALM.value
     return regime
 
 def turbulent_days(regime):

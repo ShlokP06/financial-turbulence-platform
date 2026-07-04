@@ -26,6 +26,7 @@ dependencies = [
     "fredapi>=0.5.1",
     "praw>=7.7",
     "requests>=2.31",
+    "httpx>=0.27",
     "transformers>=4.39",
     "torch>=2.2",
     "PyPortfolioOpt>=1.5.5",
@@ -34,6 +35,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "prefect>=2.16",
+    "tqdm>=4.66"
 ]
 
 [project.optional-dependencies]
@@ -45,6 +47,7 @@ dev = [
     "ruff>=0.3",
     "mypy>=1.9",
     "ipykernel>=6.29",
+    "httpx>=0.27",
 ]
 
 [project.urls]
@@ -62,8 +65,8 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM", "D"]
-ignore = ["D203", "D213"]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "SIM"]
+ignore = []
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

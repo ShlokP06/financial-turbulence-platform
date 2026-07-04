@@ -16,12 +16,18 @@ def train_model(features, target, lookback = 60, epochs = 30, batch = 64, lr =1e
     torch.manual_seed(settings.random_seed)
     X, Y, _ = make_windows(features, target, lookback=lookback)
     tr, va, _ = time_split(len(X))
+    # Standardize the (log) target on the train split so the head learns the shape, not the
+    # offset, and the optimizer isn't dragged around by the target's scale. Stats are saved
+    # in the checkpoint and inverted at inference (predict.forecast).
+    t_mean = float(Y[tr].mean())
+    t_std = float(Y[tr].std()) or 1.0
+    Yn = (Y - t_mean) / t_std
     device = get_device()
     model = LSTMCNN(n_features=X.shape[2], n_horizons=Y.shape[1]).to(device)
     opt = torch.optim.Adam(model.parameters(), lr = lr)
     loss_fn = nn.MSELoss()
-    train_dl = DataLoader(SeqData(X[tr], Y[tr]), batch_size=batch, shuffle = True)
-    val_ds = SeqData(X[va], Y[va])
+    train_dl = DataLoader(SeqData(X[tr], Yn[tr]), batch_size=batch, shuffle = True)
+    val_ds = SeqData(X[va], Yn[va])
 
     for epoch in tqdm(range(1, epochs + 1)):
         model.train()
@@ -40,7 +46,8 @@ def train_model(features, target, lookback = 60, epochs = 30, batch = 64, lr =1e
     if ckpt_path:
         torch.save({"model_state": model.state_dict(),
                     "optimizer_state": opt.state_dict(),
-                    "n_features": X.shape[2], "n_horizons": Y.shape[1], "lookback": lookback},
+                    "n_features": X.shape[2], "n_horizons": Y.shape[1], "lookback": lookback,
+                    "target_mean": t_mean, "target_std": t_std, "target_transform": "log1p"},
                     ckpt_path)
         logger.info(f"Saved checkpoint to: {ckpt_path}")
     return model

@@ -1,3 +1,4 @@
+from turballoc.config import settings
 from turballoc.ingest.credit import fetch_credit
 from turballoc.ingest.macro import fetch_macro_series
 from turballoc.ingest.market import defaults, fetch_prices, to_returns
@@ -13,11 +14,13 @@ def build_structured_features(tickers = defaults, start = "2010-01-01",
     returns = to_returns(prices, kind='log')
     store.write("prices", prices)
     store.write("returns", returns)
-    credit = fetch_credit(start, end)
+    credit = fetch_credit(start, end, prices=prices)
     store.write("credit", credit)
-    if include_macro:
+    if include_macro and settings.fred_api_key:
         macro = fetch_macro_series(start=start, end=end)
         store.write("macro", macro)
+    elif include_macro:
+        logger.warning("Skipping macro features: FRED_API_KEY not set")
 
     logger.info("Structured Features build. Tables: %s", store.list_tables())
 

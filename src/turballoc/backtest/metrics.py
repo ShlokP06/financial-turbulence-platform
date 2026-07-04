@@ -34,11 +34,20 @@ def max_drawdown(returns):
     peak = equity.cummax()
     return float((equity / peak - 1).min())
 
+def cvar(returns, alpha = 0.05):
+    "Conditional Value-at-Risk: mean of the worst alpha-tail of periodic returns (a negative number)."
+    if len(returns) == 0:
+        return 0.0
+    var = np.quantile(returns, alpha)
+    tail = returns[returns <= var]
+    return float(tail.mean()) if len(tail) else float(var)
+
 def summary(returns):
     return {
-        "ann_return": annualized_return(returns),
-        "ann_vol": annualized_vol(returns),
-        "sharpe": sharpe_ratio(returns),
-        "sortino": sortino_ratio(returns),
-        "max_drawdown": max_drawdown(returns)
+        "ann_return": float(annualized_return(returns)),
+        "ann_vol": float(annualized_vol(returns)),
+        "sharpe": float(sharpe_ratio(returns)),
+        "sortino": float(sortino_ratio(returns)),
+        "max_drawdown": max_drawdown(returns),
+        "cvar_95": cvar(returns, 0.05),
     }
