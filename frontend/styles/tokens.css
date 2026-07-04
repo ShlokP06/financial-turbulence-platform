@@ -1,0 +1,60 @@
+/* Design tokens — teal/emerald quant · glassmorphism · dark.
+   Single source of truth, mapped into Tailwind via tailwind.config.ts.
+   Dark-first. Never pure #000 (avoids OLED smear on gradients). */
+
+:root {
+  /* Layered backgrounds — deep slate, faint teal undertone */
+  --bg-deep: #080b0f;
+  --bg-0: #0a0e13;
+  --bg-1: #0e131a;
+  --bg-2: #121821;
+  --bg-3: #18202b;
+
+  /* Glass surfaces */
+  --glass-fill: rgba(255, 255, 255, 0.04);
+  --glass-fill-strong: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --glass-sheen: rgba(255, 255, 255, 0.10);
+  --glass-blur: 14px;
+
+  /* Borders / hairlines (solid fallbacks) */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --text-primary: #e6edf3;
+  --text-secondary: #9ba8b4;
+  --text-muted: #6b7681;
+
+  /* Accent — emerald/teal */
+  --accent: #10b981;
+  --accent-strong: #059669;
+  --accent-soft: #34d399;
+  --accent-muted: rgba(16, 185, 129, 0.12);
+  --accent-glow: rgba(16, 185, 129, 0.20);
+
+  /* Semantics */
+  --pos: #10b981; /* gains */
+  --neg: #ef5350; /* losses / risk */
+  --warn: #f59e0b; /* elevated / caution */
+
+  /* Functional regime scale */
+  --regime-calm: #10b981;
+  --regime-normal: #38bdf8;
+  --regime-elevated: #f59e0b;
+  --regime-turbulent: #ef5350;
+
+  /* Elevation */
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.45), 0 1px 1px rgba(0, 0, 0, 0.30);
+  --shadow-e2: 0 12px 40px rgba(0, 0, 0, 0.50), 0 2px 8px rgba(0, 0, 0, 0.40);
+  --shadow-glow: 0 0 0 1px var(--glass-border), 0 20px 60px -20px var(--accent-glow);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+
+  --radius: 16px;
+}
