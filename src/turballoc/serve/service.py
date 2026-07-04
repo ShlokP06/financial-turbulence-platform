@@ -93,7 +93,7 @@ def latest_regime_risk(store, k = 10):
     return {"probability": prob, "horizon_days": k, "as_of": as_of}
 
 def explain_importance(store, horizon = 7, max_features = 12):
-    "Global SHAP feature importance for turbulence at +`horizon` days (tractable surrogate)."
+    "Global feature importance for turbulence at +`horizon` days via a gradient-boosted surrogate."
     features, target = build_feature_frame(store)
     y = target.shift(-horizon).dropna()
     X = features.loc[y.index]
@@ -101,20 +101,10 @@ def explain_importance(store, horizon = 7, max_features = 12):
         return None
 
     from sklearn.ensemble import GradientBoostingRegressor
-    from turballoc.explain.shap_explainer import explain_model, feature_importance
 
     surrogate = GradientBoostingRegressor(random_state = settings.random_seed)
     surrogate.fit(X.to_numpy(), y.to_numpy())
-
-    bg = X.sample(min(40, len(X)), random_state = settings.random_seed)
-    inst = X.sample(min(60, len(X)), random_state = settings.random_seed + 1)
-    try:
-        shap_df = explain_model(surrogate.predict, bg, inst, nsamples = 64)
-        ranked = feature_importance(shap_df)
-    except Exception as exc:  # SHAP can be finicky; fall back to the model's own importances
-        logger.warning("SHAP failed (%s); using surrogate feature_importances_", exc)
-        ranked = pd.Series(surrogate.feature_importances_, index = X.columns).sort_values(ascending = False)
-
+    ranked = pd.Series(surrogate.feature_importances_, index = X.columns).sort_values(ascending = False)
     return [{"feature": str(k), "importance": float(v)} for k, v in ranked.head(max_features).items()]
 
 def explain_turbulence_day(store, date):

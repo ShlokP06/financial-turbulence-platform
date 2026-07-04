@@ -363,7 +363,7 @@ All endpoints accept `GET` requests. The response header `X-Process-Time-ms` rep
 | `GET /forecast` | — | Latest multi-horizon (7/30/90-day) turbulence forecast from the LSTM-CNN; requires `scripts/train_forecast.py` to have been run |
 | `GET /backtest` | `rebalance=21`, `cost=0.001`, `risk_aversion=2.5` | Walk-forward backtest of the turbulence-managed strategy vs equal-weight |
 | `GET /turbulence/why` | `date=YYYY-MM-DD` | Data-driven explanation of why turbulence was elevated on a given date; enriched with Groq + Tavily narration when both keys are set |
-| `GET /explain` | — | Global SHAP feature importance for the turbulence forecast (GBM surrogate) |
+| `GET /explain` | — | Global feature importance for the turbulence forecast (GBM surrogate) |
 
 Example responses (abbreviated):
 
@@ -408,7 +408,6 @@ financial-turbulence-platform/
 │   │   ├── engine.py               # walk_forward_backtest, run_strategy_backtest, run_forecast_backtest
 │   │   └── metrics.py              # sharpe, sortino, max_drawdown, cvar, summary
 │   ├── explain/
-│   │   ├── shap_explainer.py       # SHAP explain_model, feature_importance
 │   │   └── news_explainer.py       # Asset drivers + LLM narration for /turbulence/why
 │   └── serve/
 │       ├── app.py                  # FastAPI application (all endpoints)
@@ -421,7 +420,7 @@ financial-turbulence-platform/
 │   │       ├── page.tsx            # Overview
 │   │       ├── allocation/         # Portfolio weights
 │   │       ├── turbulence/         # Turbulence time series
-│   │       ├── explain/            # SHAP importances
+│   │       ├── explain/            # Feature importances
 │   │       └── scenarios/          # Scenario analysis
 │   └── lib/
 │       └── api.ts                  # Typed API client (NEXT_PUBLIC_API_URL)

@@ -1,39 +1,46 @@
 import numpy as np
 import pandas as pd
-from turballoc.explain.shap_explainer import explain_model, feature_importance, simple_counterfactual
+import pytest
+
+from turballoc.explain.news_explainer import asset_drivers
 
 
-def _data(n=80, seed=0):
+class _FakeStore:
+    """Minimal store stub exposing read(table) -> DataFrame, like FeatureStore."""
+
+    def __init__(self, returns):
+        self._returns = returns
+
+    def read(self, table):
+        assert table == "returns"
+        return self._returns
+
+
+def _returns(n=150, seed=0):
     rng = np.random.default_rng(seed)
-    return pd.DataFrame(
-        {"a": rng.normal(size=n), "b": rng.normal(size=n), "c": rng.normal(size=n)}
-    )
+    idx = pd.date_range("2020-01-01", periods=n, freq="B")
+    data = rng.normal(scale=0.01, size=(n, 3))
+    return pd.DataFrame(data, index=idx, columns=["AAA", "BBB", "CCC"])
 
 
-def _predict(X):
-    # a dominates, b is minor, c is irrelevant
-    X = np.asarray(X, dtype=float)
-    return 3.0 * X[:, 0] + 0.5 * X[:, 1]
+def test_asset_drivers_ranks_largest_standardized_move_first():
+    rets = _returns()
+    target = rets.index[-1]
+    # Inject a large idiosyncratic shock into BBB on the target day.
+    rets.loc[target, "BBB"] = 0.20
+    drivers = asset_drivers(_FakeStore(rets), target, top_k=3)
+    assert drivers[0]["asset"] == "BBB"
+    assert abs(drivers[0]["z"]) > abs(drivers[-1]["z"])
+    assert set(drivers[0]) == {"asset", "ret", "z"}
 
 
-def test_feature_importance_ranks_dominant_feature_first():
-    df = _data()
-    shap_df = explain_model(_predict, df.iloc[:30], df.iloc[30:40], nsamples=100)
-    imp = feature_importance(shap_df)
-    assert imp.index[0] == "a"
-    assert imp["a"] > imp["c"]
+def test_asset_drivers_respects_top_k():
+    rets = _returns()
+    drivers = asset_drivers(_FakeStore(rets), rets.index[-1], top_k=2)
+    assert len(drivers) == 2
 
 
-def test_shap_shape_matches_instances():
-    df = _data()
-    inst = df.iloc[30:40]
-    shap_df = explain_model(_predict, df.iloc[:30], inst, nsamples=100)
-    assert shap_df.shape == inst.shape
-    assert list(shap_df.columns) == list(inst.columns)
-
-
-def test_counterfactual_monotonic_in_dominant_feature():
-    df = _data()
-    cf = simple_counterfactual(_predict, df.iloc[0], "a", [-2.0, -1.0, 0.0, 1.0, 2.0])
-    preds = cf["prediction"].to_numpy()
-    assert np.all(np.diff(preds) > 0)
+def test_asset_drivers_raises_for_date_without_returns():
+    rets = _returns()
+    with pytest.raises(ValueError):
+        asset_drivers(_FakeStore(rets), pd.Timestamp("1990-01-01"))

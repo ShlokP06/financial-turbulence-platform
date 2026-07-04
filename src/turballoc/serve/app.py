@@ -105,7 +105,7 @@ def turbulence_why(date: str, store = Depends(get_store)):
 
 @app.get("/explain", response_model = ExplainResponse)
 def explain(store = Depends(get_store)):
-    "Global SHAP feature importance for the turbulence forecast (tractable surrogate over live features)."
+    "Global feature importance for the turbulence forecast (gradient-boosted surrogate over live features)."
     try:
         importances = service.explain_importance(store)
     except KeyError:

@@ -31,7 +31,6 @@ dependencies = [
     "torch>=2.2",
     "PyPortfolioOpt>=1.5.5",
     "scikit-optimize>=0.10",
-    "shap>=0.45",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
     "prefect>=2.16",
