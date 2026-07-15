@@ -7,8 +7,11 @@ The system ingests multi-source market data, computes a turbulence signal, forec
 near-term market conditions, reallocates a portfolio to manage risk, and serves it all
 behind a low-latency API — with model explanations.
 
-> **Status:** scaffold. Directory structure and config are in place; all `.py` logic is
-> implemented phase by phase (see the build roadmap below). Not yet functional.
+> **Status:** in progress. Ingestion, NLP sentiment, the turbulence/regime signal,
+> risk clustering, forecasting, allocation (Black-Litterman + Bayesian optimization),
+> and backtesting are implemented with unit tests per module. Not yet done: the RL
+> allocation agent, SHAP/counterfactual explainability, the frontend, and end-to-end
+> integration testing — see the roadmap below for exactly what's left.
 
 ## Core idea
 
@@ -40,18 +43,18 @@ deliberately not included here.
 
 ## Layout
 
-| Path | Purpose |
-| --- | --- |
-| `src/turballoc/ingest/` | ETL: structured (market, macro, credit) + unstructured (news, reddit) |
-| `src/turballoc/nlp/` | FinBERT sentiment features |
-| `src/turballoc/signals/` | Turbulence index + regime classification |
-| `src/turballoc/clustering/` | Unsupervised risk-behavior profiles |
-| `src/turballoc/forecast/` | LSTM-CNN + attention market-condition forecasts |
-| `src/turballoc/allocation/` | Black-Litterman, Bayesian optimization, RL agent |
-| `src/turballoc/backtest/` | Walk-forward, leakage-free backtest + risk metrics |
-| `src/turballoc/explain/` | SHAP + counterfactuals |
-| `src/turballoc/serve/` | FastAPI inference API |
-| `tests/` | pytest (incl. backtest leakage guard) |
+| Path | Purpose | Status |
+| --- | --- | --- |
+| `src/turballoc/ingest/` | ETL: structured (market, macro, credit) + unstructured (news, reddit) | done |
+| `src/turballoc/nlp/` | FinBERT sentiment features | done |
+| `src/turballoc/signals/` | Turbulence index + regime classification | done |
+| `src/turballoc/clustering/` | Unsupervised risk-behavior profiles | done |
+| `src/turballoc/forecast/` | LSTM-CNN market-condition forecasting | done |
+| `src/turballoc/allocation/` | Black-Litterman + Bayesian optimization | done; RL agent not started |
+| `src/turballoc/backtest/` | Walk-forward, leakage-free backtest + risk metrics | done |
+| `src/turballoc/explain/` | SHAP + counterfactuals | not started |
+| `src/turballoc/serve/` | FastAPI inference API | done |
+| `tests/` | pytest, one file per module | in place for ingest, nlp, turbulence, clustering, forecast, allocation, backtest |
 
 ## Setup
 
@@ -63,17 +66,17 @@ cp .env.example .env                                 # fill in API keys
 
 ## Build roadmap
 
-0. Scaffold ✅
-1. Structured ETL (market + macro + credit proxy → feature store)
-2. Unstructured ingestion + FinBERT sentiment
-3. Turbulence index + regime classification
-4. Risk-behavior clustering
-5. LSTM-CNN + attention forecasting (7/30/90-day)
-6. Allocation: Black-Litterman + Bayesian opt, then RL agent
-7. Explainability: SHAP + counterfactuals
-8. Serving: FastAPI low-latency endpoints
-9. Frontend (separate, later)
-10. Hardening: validation protocols, full tests, Docker, docs
+0. Scaffold — done
+1. Structured ETL (market + macro + credit proxy → feature store) — done
+2. Unstructured ingestion + FinBERT sentiment — done
+3. Turbulence index + regime classification — done
+4. Risk-behavior clustering — done
+5. LSTM-CNN forecasting — done
+6. Allocation: Black-Litterman + Bayesian opt — done; RL agent — not started
+7. Explainability: SHAP + counterfactuals — not started
+8. Serving: FastAPI low-latency endpoints — done
+9. Frontend — not started, separate effort
+10. Hardening: end-to-end integration tests, Docker, docs — in progress
 
 ## License
 
