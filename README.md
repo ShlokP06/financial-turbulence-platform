@@ -55,10 +55,11 @@ flowchart TD
 
     subgraph Forecast
         F --> R[build_exceedance_dataset\nengineered features]
-        R --> S[walk_forward_probabilities\nlogistic regression, k=10d]
+        R --> S[walk_forward_probabilities\nlogistic regression, k=10d\nstrategy signal]
         S -->|overlay_history| Q
-        F --> T[LSTM-CNN model\ntrain_forecast.py]
-        T -->|/forecast endpoint| U
+        S -.->|/regime/risk| U
+        F -.-> T[LSTM-CNN model\ntrain_forecast.py\nauxiliary: level forecast only]
+        T -.->|"/forecast (unused by strategy/backtest)"| U
     end
 
     subgraph Backtest
@@ -67,7 +68,7 @@ flowchart TD
     end
 
     subgraph Serve
-        Q --> U[FastAPI app\n/weights /turbulence /forecast\n/explain /backtest /turbulence/why]
+        Q --> U[FastAPI app\n/weights /turbulence /regime/risk\n/forecast /explain /backtest /turbulence/why]
         W --> U
     end
 
@@ -120,11 +121,11 @@ d²_t = (x_t - μ)ᵀ Σ⁻¹ (x_t - μ)
 
 Equivalently a one-sample Hotelling T² statistic. A high value means today's cross-asset return vector is statistically improbable under the recent covariance regime — not just that any single asset moved, but that the joint pattern across all assets is unusual. Regime labels (calm / normal / turbulent) are assigned by rolling quantiles.
 
-### Exceedance forecaster (logistic regression)
+### Exceedance forecaster (logistic regression) — the actual strategy signal
 
-Forecasting the turbulence *level* is a dead end: its autocorrelation decays from 0.48 at 1-day lag to near zero at 90 days, so any level regressor reduces to predicting the running mean. The LSTM-CNN (kept in `forecast/model.py`) was shown to be statistically indistinguishable from persistence on out-of-sample rank-IC and was discarded as the strategy signal.
+Forecasting the turbulence *level* is a dead end: its autocorrelation decays from 0.48 at 1-day lag to near zero at 90 days, so any level regressor reduces to predicting the running mean. The LSTM-CNN (`forecast/model.py`) was shown to be statistically indistinguishable from persistence on out-of-sample rank-IC and was discarded as the strategy signal.
 
-The actionable target is *exceedance*: will turbulence cross its trailing 90th-percentile threshold within the next `k` trading days? A regularized logistic regression trained on 14 causal engineered features (log turbulence, turbulence momentum, realized volatility, cross-sectional dispersion, credit stress) beats the persistence baseline at every horizon:
+The actionable target is *exceedance*: will turbulence cross its trailing 90th-percentile threshold within the next `k` trading days? A regularized logistic regression (`forecast/exceedance.py`), trained on 14 causal engineered features (log turbulence, turbulence momentum, realized volatility, cross-sectional dispersion, credit stress), beats the persistence baseline at every horizon:
 
 | Horizon | Persistence AUC | Logistic regression AUC |
 |---|---|---|
@@ -132,7 +133,9 @@ The actionable target is *exceedance*: will turbulence cross its trailing 90th-p
 | k = 10 days (default) | 0.685 | 0.727 |
 | k = 21 days | 0.668 | 0.693 |
 
-Gradient boosting over-fits (AUC 0.50–0.60 out-of-sample) and was also discarded. The logistic probability is the `overlay_history` signal fed into `turbulence_managed_weights` during the forecast-driven backtest.
+Gradient boosting over-fits (AUC 0.50–0.60 out-of-sample) and was also discarded. This logistic exceedance probability — not the LSTM-CNN — is the `overlay_history` signal fed into `turbulence_managed_weights` in the forecast-driven backtest, and it is the only forecast that reaches allocation. It needs no separate training step: it is fit on the fly inside `walk_forward_probabilities` (backtest) and `latest_exceedance_probability` (live), which is what `GET /regime/risk` serves.
+
+**Two forecasting models, two unrelated jobs.** It is easy to conflate these because both live under `forecast/`, so to be explicit: the **logistic exceedance classifier** (`exceedance.py`) is the de-risk trigger that drives the backtested strategy and is served by `GET /regime/risk`. The **LSTM-CNN** (`model.py`, trained by `scripts/train_forecast.py` into `checkpoints/forecast.pt`) is a separate, still-functional multi-horizon (7/30/90-day) turbulence-*level* forecaster served only by `GET /forecast`. It is not used by the allocation layer or the backtest — it was retained as a standalone research artifact after losing the head-to-head above, not deleted.
 
 ### Leak-safe walk-forward
 
@@ -241,10 +244,10 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-The `rl` extra (`stable-baselines3`, `gymnasium`) is only needed for the RL agent scaffold and is not part of the active strategy:
+An `rl` extra (`stable-baselines3`, `gymnasium`) is declared in `pyproject.toml` but is currently a reserved dependency set with no corresponding code in `src/` — there is no RL agent, environment, or training script in this repository yet. Install it only if you plan to build on it:
 
 ```bash
-pip install -e ".[dev,rl]"   # optional
+pip install -e ".[dev,rl]"   # optional; no RL code currently depends on this
 ```
 
 ### Environment variables
@@ -348,6 +351,26 @@ Set `NEXT_PUBLIC_API_URL` if the API is not on the default port:
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ```
 
+### Run with Docker
+
+`docker-compose.yml` defines two services, both built from the repo-root `Dockerfile` (`python:3.11-slim`, installs the package via `pip install .`):
+
+- **`api`** — runs `uvicorn turballoc.serve.app:app --host 0.0.0.0 --port 8000`, published on host port `8000`, mounts `./data` into the container, and reads `.env`.
+- **`scheduler`** — runs `python -m turballoc.ingest.flows` on the same image, also reading `.env` and mounting `./data`.
+
+```bash
+cp .env.example .env      # fill in whatever keys you want; all optional
+docker compose up --build
+# API available at http://localhost:8000
+```
+
+To build and run just the API image directly:
+
+```bash
+docker build -t turballoc:latest .
+docker run --rm -p 8000:8000 --env-file .env -v "$(pwd)/data:/app/data" turballoc:latest
+```
+
 ---
 
 ## API Reference
@@ -360,7 +383,8 @@ All endpoints accept `GET` requests. The response header `X-Process-Time-ms` rep
 | `GET /turbulence/latest` | — | Most recent turbulence value and regime label |
 | `GET /turbulence/history` | `limit=504` | Recent turbulence time series (most recent `limit` observations) |
 | `GET /weights` | `target_vol=0.07`, `lookback=252` | Latest portfolio weights; `target_vol` is the risk dial — lower values hold more cash |
-| `GET /forecast` | — | Latest multi-horizon (7/30/90-day) turbulence forecast from the LSTM-CNN; requires `scripts/train_forecast.py` to have been run |
+| `GET /forecast` | — | Latest multi-horizon (7/30/90-day) turbulence *level* forecast from the LSTM-CNN; requires `scripts/train_forecast.py` to have been run; not used by the strategy or backtest |
+| `GET /regime/risk` | — | Latest forward-turbulence exceedance probability from the logistic classifier — the leading de-risk signal the allocation overlay actually consumes |
 | `GET /backtest` | `rebalance=21`, `cost=0.001`, `risk_aversion=2.5` | Walk-forward backtest of the turbulence-managed strategy vs equal-weight |
 | `GET /turbulence/why` | `date=YYYY-MM-DD` | Data-driven explanation of why turbulence was elevated on a given date; enriched with Groq + Tavily narration when both keys are set |
 | `GET /explain` | — | Global feature importance for the turbulence forecast (GBM surrogate) |
@@ -373,6 +397,9 @@ Example responses (abbreviated):
 
 // GET /weights?target_vol=0.07
 { "weights": { "AGG": 0.18, "TLT": 0.22, "GLD": 0.14, "CASH": 0.31, ... }, "target_vol": 0.07 }
+
+// GET /regime/risk
+{ "probability": 0.18, "horizon_days": 10, "as_of": "2026-06-27" }
 ```
 
 ---
@@ -397,7 +424,7 @@ financial-turbulence-platform/
 │   │   ├── covariance.py           # shrunk_covariance (Ledoit-Wolf)
 │   │   ├── risk_based.py           # min_variance_weights, risk_parity_weights, inverse_vol_weights
 │   │   ├── momentum.py             # trailing_momentum, risk_adjusted_momentum, momentum_tilt, momentum_trend_filter
-│   │   └── strategy.py             # turbulence_managed_weights, signal_exposure, vol_target_scale
+│   │   └── strategy.py             # turbulence_managed_weights, signal_exposure, turbulence_exposure, vol_target_scale
 │   ├── forecast/
 │   │   ├── exceedance.py           # Logistic exceedance classifier (build_exceedance_dataset, walk_forward_probabilities)
 │   │   ├── model.py                # LSTM-CNN architecture (kept; powers /forecast endpoint)
@@ -433,15 +460,23 @@ financial-turbulence-platform/
 ├── tests/                          # pytest suite
 ├── reports/
 │   ├── RESULTS.md                  # Generated backtest results
-│   └── STRESS.md                   # Generated crisis stress results
+│   ├── STRESS.md                   # Generated crisis stress results
+│   ├── backtest_results.json       # Generated backtest results (machine-readable)
+│   └── stress_results.json         # Generated crisis stress results (machine-readable)
 ├── docs/
-│   └── turbulence_analysis.tex     # Technical write-up
+│   ├── turbulence_analysis.tex     # Technical write-up (source)
+│   └── turbulence_analysis.pdf     # Technical write-up (built)
 ├── data/
 │   └── processed/
 │       ├── features.duckdb         # Core 10-asset feature store
 │       └── features_expanded.duckdb  # Expanded 14-asset store (created by build_expanded_store.py)
 ├── checkpoints/
 │   └── forecast.pt                 # LSTM-CNN checkpoint (created by train_forecast.py)
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # Lint, format-check, test, and Docker build/publish
+├── Dockerfile                      # Builds the API image (python:3.11-slim)
+├── docker-compose.yml              # `api` (FastAPI on :8000) + `scheduler` services
 ├── pyproject.toml
 ├── .env.example
 └── .dockerignore
@@ -468,6 +503,13 @@ The suite covers allocation math, turbulence computation, momentum signals, the 
 - **`test_no_lookahead`** (`tests/test_backtest.py`): asserts that the weight function at rebalance step `i` never sees more than `i-1` rows of returns.
 - **`test_walk_forward_probabilities_are_leak_safe_and_in_unit_interval`** (`tests/test_exceedance.py`): asserts that out-of-sample scores only appear after the warm-up period and that the model never trains on unlabeled rows within the forecast horizon `k`.
 
+### Continuous integration
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push to `main` and every pull request:
+
+1. **`test`** (Python 3.11): `ruff check src tests`, `black --check src tests`, then `pytest -q`.
+2. **`docker`** (depends on `test`): builds the image as `turballoc:ci`; on pushes to `main` it additionally logs into `ghcr.io` and pushes `ghcr.io/shlokp06/financial-turbulence-platform` tagged `latest` and with the commit SHA.
+
 ---
 
 ## Limitations
@@ -493,7 +535,7 @@ These are stated candidly as part of the analysis:
 - Kritzman, M. and Li, Y. "Skulls, Financial Turbulence, and Risk Management." *Financial Analysts Journal*, 2010. — source of the turbulence index.
 - Moskowitz, T., Ooi, Y. H., and Pedersen, L. H. "Time Series Momentum." *Journal of Financial Economics*, 2012. — basis for the momentum tilt and risk-adjusted scaling.
 - Ledoit, O. and Wolf, M. "Honey, I Shrunk the Sample Covariance Matrix." *Journal of Portfolio Management*, 2004. — Ledoit-Wolf shrinkage used in `covariance.py`.
-- Black, F. and Litterman, R. "Global Portfolio Optimization." *Financial Analysts Journal*, 1992. — original Black-Litterman framework (implemented in `allocation/black_litterman.py`; superseded in the active strategy by the risk-based base).
+- Black, F. and Litterman, R. "Global Portfolio Optimization." *Financial Analysts Journal*, 1992. — original Black-Litterman framework; an earlier iteration of this project used a turbulence-tilted Black-Litterman strategy (see the intro), which underperformed equal-weight and was replaced by the Ledoit-Wolf minimum-variance base now in `allocation/risk_based.py`. No Black-Litterman code remains in the active codebase.
 
 ---
 
